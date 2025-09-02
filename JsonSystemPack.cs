@@ -64,7 +64,7 @@ public static class JsonSystemPack {
 		return true;
 	}
 
-	public static object? DateTimeDeserialization(ref JsonReadBuffer buffer, LinkedElement<Type> linkedType) {
+	public static object? DateTimeDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType) {
 		if (linkedType.Value != typeof(DateTime)) return null;
 		var tempBuf = buffer.Clone();
 
@@ -83,7 +83,7 @@ public static class JsonSystemPack {
 
 
 
-	public static object? StringKeyDictionaryDeserialization(ref JsonReadBuffer buffer, LinkedElement<Type> linkedType, JsonDeserializationInvoker invoker) {
+	public static object? StringKeyDictionaryDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType, JsonDeserializationInvoker invoker) {
 		var type = linkedType.Value;
 		if (!TryFindInterfaceType(type.GetInterfaces(), i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>) &&
 		i.GetGenericArguments()[0] == typeof(string),
@@ -100,7 +100,7 @@ public static class JsonSystemPack {
 
 		while (true) {
 			if (next == JsonReadBuffer.NextType.Undefined) {
-				dict.Add(buffer.ReadObjectFieldName()!, invoker.Invoke(ref buffer, linkedVType));
+				dict.Add(buffer.ReadObjectFieldName()!, invoker.Invoke(buffer, linkedVType));
 				next = buffer.NextBlock();
 			}
 			if (next == JsonReadBuffer.NextType.Punctuation) {

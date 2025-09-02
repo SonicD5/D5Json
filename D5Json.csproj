@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Library</OutputType>
+    <OutputType>Exe</OutputType>
 	<RootNamespace>SonicD5.Json</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -21,7 +21,6 @@
 
   <ItemGroup>
     <Compile Remove="Program.cs" />
-    <Compile Remove="Test.cs" />
   </ItemGroup>
 
   <ItemGroup>

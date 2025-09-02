@@ -8,9 +8,8 @@ using System.Text.RegularExpressions;
 namespace SonicD5.Json;
 
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
-public sealed class JsonSerializableAttribute : Attribute {
-	public string Name { get; init; }
-	public JsonSerializableAttribute(string name) { Name = name; }
+public sealed class JsonSerializableAttribute(string name) : Attribute {
+	public string Name { get; init; } = name;
 }
 
 public enum NamingConvetions { Any, CamelCase, SnakeCase, PascalCase, KebabCase }
@@ -33,8 +32,8 @@ public class JsonSyntaxException(string? message, JsonReadBuffer? buffer = null)
 
 public delegate void JsonSerializationInvoker(object? obj, LinkedElement<Type> linkedType, int indentCount);
 public delegate bool JsonSerialization(StringBuilder sb, object obj, LinkedElement<Type> linkedType, JsonSerializer.SerializationConfig config, int indentCount, JsonSerializationInvoker invoker);
-public delegate object? JsonDeserializationInvoker(ref JsonReadBuffer buffer, LinkedElement<Type> linkedType);
-public delegate object? JsonDeserialization(ref JsonReadBuffer buffer, LinkedElement<Type> linkedType, JsonSerializer.DeserializationConfig config, JsonDeserializationInvoker invoker);
+public delegate object? JsonDeserializationInvoker(JsonReadBuffer buffer, LinkedElement<Type> linkedType);
+public delegate object? JsonDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType, JsonSerializer.DeserializationConfig config, JsonDeserializationInvoker invoker);
 
 public class LinkedElement<T> {
 	public T Value { get; init; }
@@ -48,11 +47,14 @@ public class LinkedElement<T> {
 		if (previous != null) for (var e = Previous; e != null; e = e.Previous) e.Last = this;
 	}
 
-	public List<T> Combine() {
-		List<T> list = [];
-		for (var e = this; e != null; e = e.Previous) list.Add(e.Value);
-		list.Reverse();
-		return list;
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <returns></returns>
+	public Stack<T> ToStack() {
+		Stack<T> result = [];
+		for (var e = this; e != null; e = e.Previous) result.Push(e.Value);
+		return result;
 	}
 
 	public override string ToString() {
@@ -114,7 +116,7 @@ public static partial class JsonSerializer {
 			if (config.SerializationPack.Any(s => s.Invoke(sb, obj, linkedType, config, indentCount, (o, lt, i) => Serialize(sb, o, lt, config, i)))) return;
 			if (!DefaultSerialization(sb, obj, linkedType, config, indentCount)) throw new JsonReflectionException();
 		} catch (Exception inner) { 
-			throw linkedType.Previous == null ? new JsonException($"Serialization has been failed (Type sequence: {string.Join(" -> ", linkedType.Last.Combine().Select(t => StringType(t, true)))}): ", inner) : inner; 
+			throw linkedType.Previous == null ? new JsonException($"Serialization has been failed (Type Stack: {string.Join(" -> ", linkedType.Last.ToStack().Select(t => StringType(t, true)))}): ", inner) : inner; 
 		}
 	}
 
@@ -272,8 +274,7 @@ public static partial class JsonSerializer {
 
 	public static object? Deserialize(string json, Type type, DeserializationConfig config) {
 		if (string.IsNullOrWhiteSpace(json)) return default;
-		JsonReadBuffer buf = new(json);
-		return Deserialize(ref buf, new(type, null), config);
+		return Deserialize(new JsonReadBuffer(json), new(type, null), config);
 	}
 	public static object? Deserialize(string json, Type type) => Deserialize(json, type, new());
 	public static T? Deserialize<T>(string json, DeserializationConfig config) => (T?)Deserialize(json, typeof(T), config);
@@ -303,21 +304,21 @@ public static partial class JsonSerializer {
 	public static bool TryDeserialize<T>(string json, out T? result) => TryDeserialize(json, new(), out result);
 	
 
-	private static object? Deserialize(ref JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
+	private static object? Deserialize(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
 		Type type = linkedType.Value;
 		var nullableUnderlyingType = Nullable.GetUnderlyingType(type);
 		if (buffer.NextIsNull()) {
 			if (type.IsClass || nullableUnderlyingType != null) return null;
 			else throw new JsonReflectionException("This type isn't nullable");
 		}
-		if (nullableUnderlyingType != null) return Deserialize(ref buffer, new(nullableUnderlyingType, linkedType.Previous), config);
+		if (nullableUnderlyingType != null) return Deserialize(buffer, new(nullableUnderlyingType, linkedType.Previous), config);
 
 		try {
 			if (type == typeof(object)) {
 				foreach (Type t in config.DynamicAvalableTypes) {
 					try {
 						var tempBuf = buffer.Clone();
-						var obj = Deserialize(ref tempBuf, new(t, null), config);
+						var obj = Deserialize(tempBuf, new(t, null), config);
 						if (obj == null) continue;
 						buffer = tempBuf;
 						return obj;
@@ -330,20 +331,20 @@ public static partial class JsonSerializer {
 			object? result = null;
 			foreach (var d in config.DeserializationPack) {
 				if (result != null) return result;
-				result = d.Invoke(ref buffer, linkedType, config, (ref buf, lt) => Deserialize(ref buf, lt, config));
+				result = d.Invoke(buffer, linkedType, config, (buf, lt) => Deserialize(buf, lt, config));
 			}
-			result ??= DefaultDeserialization(ref buffer, linkedType, config);
+			result ??= DefaultDeserialization(buffer, linkedType, config);
 			if (result == null) throw new JsonReflectionException();
 			return result;
 		} catch (Exception inner) {
-			throw linkedType.Previous == null ? new JsonException($"Deserialization has been failed (Type sequence: {string.Join(" -> ", linkedType.Last.Combine().Select(t => StringType(t, true)))}): ", inner) : inner;
+			throw linkedType.Previous == null ? new JsonException($"Deserialization has been failed (Type Stack: {string.Join(" -> ", linkedType.Last.ToStack().Select(t => StringType(t, true)))}): ", inner) : inner;
 		}
 	}
 
 	public static readonly Regex HexRegex = new(@"^[-+]?0[xX]");
 	private static T HexApplier<T>(T number, bool isNegative) where T : ISignedNumber<T> => isNegative ? -number : number;
 
-	private static object? DefaultDeserialization(ref JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
+	private static object? DefaultDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
 		Type type = linkedType.Value;
 		if (type == typeof(string)) return buffer.ReadString();
 
@@ -382,16 +383,16 @@ public static partial class JsonSerializer {
 			}
 			throw new JsonReflectionException($"\"{type.Name}\" enum hasn't \"{raw}\" value");
 		}
-		if (type.IsArray) return DeserializeArray(ref buffer, linkedType, config);
+		if (type.IsArray) return DeserializeArray(buffer, linkedType, config);
 
 		if (TryFindInterfaceType(interfaceTypes, i => i.IsGenericType 
 		&& i.GetGenericTypeDefinition() == typeof(IEnumerable<>),
-		out Type collectionType)) return DeserializeCollection(ref buffer, new(collectionType.GetGenericArguments()[0], linkedType), config);
-		if (type.IsValueType || type.IsClass) return DeserializeObject(ref buffer, linkedType, config);
+		out Type collectionType)) return DeserializeCollection(buffer, new(collectionType.GetGenericArguments()[0], linkedType), config);
+		if (type.IsValueType || type.IsClass) return DeserializeObject(buffer, linkedType, config);
 		return null;
 	}
 
-	private static object DeserializeArray(ref JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
+	private static object DeserializeArray(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
 		var next = buffer.Next();
 
 		if (next != JsonReadBuffer.NextType.Array) throw new JsonSyntaxException($"The object start must be '['", buffer);
@@ -403,7 +404,7 @@ public static partial class JsonSerializer {
 
 		while (true) {
 			if (next == JsonReadBuffer.NextType.Undefined) {
-				elems.Add(Deserialize(ref buffer, new(eType, linkedType), config));
+				elems.Add(Deserialize(buffer, new(eType, linkedType), config));
 				next = buffer.NextBlock();
 			}
 			if (next == JsonReadBuffer.NextType.Punctuation) {
@@ -421,7 +422,7 @@ public static partial class JsonSerializer {
 		return array;
 	}
 
-	private static object DeserializeCollection(ref JsonReadBuffer buffer, LinkedElement<Type> linkedEtype, DeserializationConfig config) {
+	private static object DeserializeCollection(JsonReadBuffer buffer, LinkedElement<Type> linkedEtype, DeserializationConfig config) {
 		var next = buffer.Next();
 	
 		if (next != JsonReadBuffer.NextType.Array) throw new JsonSyntaxException($"The object start must be '['", buffer);
@@ -435,7 +436,7 @@ public static partial class JsonSerializer {
 
 		while (true) {
 			if (next == JsonReadBuffer.NextType.Undefined) {
-				addMethod.Invoke(collection, [Deserialize(ref buffer, linkedEtype, config)]);
+				addMethod.Invoke(collection, [Deserialize(buffer, linkedEtype, config)]);
 				next = buffer.NextBlock();
 			}
 			if (next == JsonReadBuffer.NextType.Punctuation) {
@@ -451,7 +452,7 @@ public static partial class JsonSerializer {
 		return collection;
 	}
 
-	private static object DeserializeObject(ref JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
+	private static object DeserializeObject(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
 		var next = buffer.Next();
 		if (next != JsonReadBuffer.NextType.Block) throw new JsonSyntaxException("The object start must be '{'", buffer);
 		object obj = Activator.CreateInstance(linkedType.Value)!;
@@ -466,8 +467,8 @@ public static partial class JsonSerializer {
 				string name = buffer.ReadObjectFieldName();
 				var m = members.FirstOrDefault(m => config.RequiredNamingEquality ? m.Name == name : Enum.GetValues<NamingConvetions>().Any(v => m.Name.ConvertCase(v) == name) || m.GetCustomAttribute<JsonSerializableAttribute>()?.Name == name);
 				if (m == null) buffer.SkipObjectField();
-				else if (m is PropertyInfo p && p.CanWrite) p.SetValue(obj, Deserialize(ref buffer, new(p.PropertyType, linkedType), config));
-				else if (m is FieldInfo f) f.SetValue(obj, Deserialize(ref buffer, new(f.FieldType, linkedType), config));
+				else if (m is PropertyInfo p && p.CanWrite) p.SetValue(obj, Deserialize(buffer, new(p.PropertyType, linkedType), config));
+				else if (m is FieldInfo f) f.SetValue(obj, Deserialize(buffer, new(f.FieldType, linkedType), config));
 				next = buffer.NextBlock();
 			}
 			if (next == JsonReadBuffer.NextType.Punctuation) {
