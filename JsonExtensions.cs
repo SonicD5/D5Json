@@ -139,6 +139,14 @@ public static partial class JsonSerializer {
 		return sb.ToString();
 	}
 
+
+
+	/// <summary>
+	/// Thanks for raw version of case converter to https://github.com/markcastle/CaseConverter
+	/// </summary>
+	/// <param name="str"></param>
+	/// <param name="convention"></param>
+	/// <returns></returns>
 	public static string ConvertCase(this string str, NamingConvetions convention) {
 		if (string.IsNullOrEmpty(str)) return str;
 
