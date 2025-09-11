@@ -64,6 +64,10 @@ public static class JsonSystemPack {
 		return true;
 	}
 
+	public static object? TypeDeserialization() {
+
+	}
+
 	public static object? DateTimeDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType) {
 		if (linkedType.Value != typeof(DateTime)) return null;
 		var tempBuf = buffer.Clone();

@@ -12,6 +12,9 @@ public sealed class JsonSerializableAttribute(string name) : Attribute {
 	public string Name { get; init; } = name;
 }
 
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
+public sealed class JsonSerializationIgnoredAttribute : Attribute { }
+
 public enum NamingConvetions { Any, CamelCase, SnakeCase, PascalCase, KebabCase }
 public enum ObjectFieldConventions { NoQuote, SingleQuote = '\'', DoubleQuote = '\"' }
 
@@ -47,10 +50,6 @@ public class LinkedElement<T> {
 		if (previous != null) for (var e = Previous; e != null; e = e.Previous) e.Last = this;
 	}
 
-	/// <summary>
-	/// 
-	/// </summary>
-	/// <returns></returns>
 	public Stack<T> ToStack() {
 		Stack<T> result = [];
 		for (var e = this; e != null; e = e.Previous) result.Push(e.Value);
@@ -152,7 +151,7 @@ public static partial class JsonSerializer {
 		if (type.IsEnum) {
 			var field = type.GetFields().First(f => f.Name == Enum.GetName(type, obj));
 
-			sb.Append(field.IsDefined(typeof(JsonSerializableAttribute)) ? field.GetCustomAttribute<JsonSerializableAttribute>()?.Name :
+			sb.Append(field.IsDefined(typeof(JsonSerializableAttribute)) ? field.GetCustomAttribute<JsonSerializableAttribute>()!.Name :
 				field.Name.ConvertCase(config.NamingConvetion));
 			return true;
 		} 
@@ -180,6 +179,8 @@ public static partial class JsonSerializer {
 		sb.Append('{');
 
 		foreach (var m in members) {
+			if (m.IsDefined(typeof(JsonSerializationIgnoredAttribute))) continue;
+
 			var f = m as FieldInfo;
 			if (f != null && (f.IsSecurityCritical || (config.IgnoreNullValues && f.GetValue(obj) == null))) continue;
 
@@ -396,7 +397,7 @@ public static partial class JsonSerializer {
 		var next = buffer.Next();
 
 		if (next != JsonReadBuffer.NextType.Array) throw new JsonSyntaxException($"The object start must be '['", buffer);
-		Type eType = linkedType.Value.GetElementType()!;
+		var eType = linkedType.Value.GetElementType()!;
 		next = buffer.NextBlock();
 		if (next == JsonReadBuffer.NextType.EndArray) return Array.CreateInstance(eType, 0);
 		if (next == JsonReadBuffer.NextType.Punctuation) throw new JsonSyntaxException($"Punctuation must not be here", buffer);
@@ -521,6 +522,7 @@ public sealed class JsonReadBuffer {
 	public int LineIndex { get; private set; } 
 
 	public override string ToString() => $"({LineIndex}:{BufferIndex}) -> \"{buffer}\", {_nextLines.Count} lines left";
+
 	public JsonReadBuffer Clone() { 
 		var clone = (JsonReadBuffer)MemberwiseClone();
 		clone._nextLines = new(_nextLines);
