@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>Library</OutputType>
 	<RootNamespace>SonicD5.Json</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -29,7 +29,6 @@
 
   <ItemGroup>
     <None Include="bin\debug\net8.0\nuh.json5" />
-    <None Include="D5Json.sln" />
   </ItemGroup>
 
   <ItemGroup>
