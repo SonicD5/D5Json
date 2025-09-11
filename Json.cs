@@ -13,7 +13,7 @@ public sealed class JsonSerializableAttribute(string name) : Attribute {
 }
 
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
-public sealed class JsonSerializationIgnoredAttribute : Attribute { }
+public sealed class JsonSerializationIgnoreAttribute : Attribute { }
 
 public enum NamingConvetions { Any, CamelCase, SnakeCase, PascalCase, KebabCase }
 public enum ObjectFieldConventions { NoQuote, SingleQuote = '\'', DoubleQuote = '\"' }
@@ -179,7 +179,7 @@ public static partial class JsonSerializer {
 		sb.Append('{');
 
 		foreach (var m in members) {
-			if (m.IsDefined(typeof(JsonSerializationIgnoredAttribute))) continue;
+			if (m.IsDefined(typeof(JsonSerializationIgnoreAttribute))) continue;
 
 			var f = m as FieldInfo;
 			if (f != null && (f.IsSecurityCritical || (config.IgnoreNullValues && f.GetValue(obj) == null))) continue;
