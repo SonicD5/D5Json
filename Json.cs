@@ -307,16 +307,16 @@ public static partial class JsonSerializer {
 
 	private static object? Deserialize(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
 		Type type = linkedType.Value;
-		var nullableUnderlyingType = Nullable.GetUnderlyingType(type);
+		var nullableValue = Nullable.GetUnderlyingType(type);
 		if (buffer.NextIsNull()) {
-			if (type.IsClass || nullableUnderlyingType != null) return null;
-			else throw new JsonReflectionException("This type isn't nullable");
+			if (type.IsClass || nullableValue != null) return null;
+			throw new JsonReflectionException("This type isn't nullable");
 		}
-		if (nullableUnderlyingType != null) return Deserialize(buffer, new(nullableUnderlyingType, linkedType.Previous), config);
+		if (nullableValue != null) return Deserialize(buffer, new(nullableValue, linkedType.Previous), config);
 
 		try {
 			if (type == typeof(object)) {
-				foreach (Type t in config.DynamicAvalableTypes) {
+				foreach (var t in config.DynamicAvalableTypes) {
 					try {
 						var tempBuf = buffer.Clone();
 						var obj = Deserialize(tempBuf, new(t, null), config);
