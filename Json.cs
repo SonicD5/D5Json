@@ -97,7 +97,7 @@ public static partial class JsonSerializer {
 	}
 
 	private static MemberInfo[] GetFieldsAndProperties(Type type) => [.. type.GetMembers(BindingFlags.Public | BindingFlags.Instance)
-		.Where(m => m.MemberType == MemberTypes.Field || (m.MemberType == MemberTypes.Property && ((PropertyInfo)m).GetIndexParameters().Length == 0))];
+		.Where(m => m.MemberType == MemberTypes.Field || (m is PropertyInfo p && p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0))];
 
 
 	public static string Serialize(object? obj, SerializationConfig config) {
@@ -198,7 +198,7 @@ public static partial class JsonSerializer {
 				$"{quoute}{m.GetCustomAttribute<JsonSerializableAttribute>()?.Name ?? m.Name.ConvertCase(config.NamingConvetion)}{quoute}:" +
 				$"{(hasIndent ? ' ' : "")}");
 			if (f != null) Serialize(sb, f.GetValue(obj), new(f.FieldType, linkedType), config, newIndentCount);
-			else if (p != null && p.CanRead) Serialize(sb, p.GetValue(obj), new(p.PropertyType, linkedType), config, newIndentCount);
+			else if (p != null) Serialize(sb, p.GetValue(obj), new(p.PropertyType, linkedType), config, newIndentCount);
 
 		}
 		if (isNotFirst) {
@@ -393,7 +393,7 @@ public static partial class JsonSerializer {
 		return null;
 	}
 
-	private static object DeserializeArray(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
+	private static Array DeserializeArray(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
 		var next = buffer.Next();
 
 		if (next != JsonReadBuffer.NextType.Array) throw new JsonSyntaxException($"The object start must be '['", buffer);
@@ -466,9 +466,9 @@ public static partial class JsonSerializer {
 		while (true) {
 			if (next == JsonReadBuffer.NextType.Undefined) {
 				string name = buffer.ReadObjectFieldName();
-				var m = members.FirstOrDefault(m => config.RequiredNamingEquality ? m.Name == name : Enum.GetValues<NamingConvetions>().Any(v => m.Name.ConvertCase(v) == name) || m.GetCustomAttribute<JsonSerializableAttribute>()?.Name == name);
+				var m = members.FirstOrDefault(m => m.GetCustomAttribute<JsonSerializableAttribute>()?.Name == name || (config.RequiredNamingEquality ? m.Name == name : Enum.GetValues<NamingConvetions>().Any(v => m.Name.ConvertCase(v) == name)));
 				if (m == null) buffer.SkipObjectField();
-				else if (m is PropertyInfo p && p.CanWrite) p.SetValue(obj, Deserialize(buffer, new(p.PropertyType, linkedType), config));
+				else if (m is PropertyInfo p) p.SetValue(obj, Deserialize(buffer, new(p.PropertyType, linkedType), config));
 				else if (m is FieldInfo f) f.SetValue(obj, Deserialize(buffer, new(f.FieldType, linkedType), config));
 				next = buffer.NextBlock();
 			}
