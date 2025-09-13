@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Text;
 using static SonicD5.Json.JsonSerializer;
 
-namespace SonicD5.Json.Packs;
+namespace SonicD5.Json;
 
 public static class JsonSystemPack {
 
@@ -64,8 +64,8 @@ public static class JsonSystemPack {
 		return true;
 	}
 
-	//public static object? TypeDeserialization() {
-
+	//public static object? TypeDeserialization(JsonDeserialization buffer, LinkedElement<Type> linkedType) {
+	//	AppDomain.CurrentDomain.AssemblyLoad
 	//}
 
 	public static object? DateTimeDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType) {

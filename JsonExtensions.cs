@@ -3,7 +3,6 @@ using System.Text;
 
 namespace SonicD5.Json;
 
-
 public static partial class JsonSerializer {
 
 	private static string ToKebabCase(string str) {
@@ -14,7 +13,7 @@ public static partial class JsonSerializer {
 			char symb = str[i];
 
 			if (char.IsUpper(symb) || char.IsDigit(symb)) {
-				if (!previousSymbIsSeparator && (i > 0 && (char.IsLower(str[i - 1]) || (i < str.Length - 1 && char.IsLower(str[i + 1]))))) sb.Append('-');
+				if (!previousSymbIsSeparator && i > 0 && (char.IsLower(str[i - 1]) || (i < str.Length - 1 && char.IsLower(str[i + 1])))) sb.Append('-');
 				sb.Append(char.ToLowerInvariant(symb));
 				previousSymbIsSeparator = false;
 			}
@@ -156,8 +155,8 @@ public static partial class JsonSerializer {
 
 	public static string? Repeat(this string? str, int count) {
 		if (count <= 0) return "";
-		if (string.IsNullOrEmpty(str) || count < 1) return str;
-		StringBuilder sb = new();
+		if (string.IsNullOrEmpty(str) || count == 1) return str;
+		StringBuilder sb = new(count);
 		for (int i = 0; i < count; i++) sb.Append(str);
 		return sb.ToString();
 	}
@@ -172,7 +171,8 @@ public static partial class JsonSerializer {
 	}
 
 	public static string StringType(Type type, bool hideGenericArgs = false) {
-		if (type.IsValueType && Nullable.GetUnderlyingType(type) != null) return $"{StringType(type.GetGenericArguments()[0], hideGenericArgs)}?";
+		var nullableValue = Nullable.GetUnderlyingType(type);
+		if (nullableValue != null) return $"{StringType(nullableValue, hideGenericArgs)}?";
 		StringBuilder sb = new();
 		if (!string.IsNullOrEmpty(type.Namespace)) sb.Append(type.Namespace);
 		sb.Append('.');
@@ -180,7 +180,7 @@ public static partial class JsonSerializer {
 			var genericArgs = type.GetGenericArguments();
 			sb.Append(type.Name[..type.Name.IndexOf('`')]);
 			sb.Append('<');
-			sb.Append(hideGenericArgs ? ",".Repeat(genericArgs.Length - 1) : string.Join(", ", genericArgs.Select(t => StringType(t))));
+			sb.Append(hideGenericArgs ? new(',', genericArgs.Length - 1) : string.Join(", ", genericArgs.Select(t => StringType(t))));
 			sb.Append('>');
 		} else sb.Append(type.Name);
 		return sb.ToString();
