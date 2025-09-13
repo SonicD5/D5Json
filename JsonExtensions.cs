@@ -3,24 +3,8 @@ using System.Text;
 
 namespace SonicD5.Json;
 
-//public enum JsonType {
-//	Null,
-//	String,
-//	Integer,
-//	Float,
-//	Boolean,
-//	Array,
-//	Object
-//}
 
 public static partial class JsonSerializer {
-
-	//public static JsonType GetJsonType(this Type type, HashSet<JsonSerialization> serializationPack) {
-	//	string result = Serialize(type., new() { SerializationPack = serializationPack });
-	//	if (result == Null) return JsonType.Null;
-	//	if (result is "true" or "false") return JsonType.Boolean;
-
-	//}
 
 	private static string ToKebabCase(string str) {
 		StringBuilder sb = new();

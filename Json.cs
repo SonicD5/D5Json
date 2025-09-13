@@ -108,8 +108,7 @@ public static partial class JsonSerializer {
 
 
 	public static string Serialize(object? obj, SerializationConfig config) {
-		if (obj == null)
-			return Null;
+		if (obj == null) return Null;
 		StringBuilder sb = new();
 		Serialize(sb, obj, new(obj.GetType(), null), config, 0);
 		return sb.ToString();
@@ -144,7 +143,7 @@ public static partial class JsonSerializer {
 	private static bool DefaultSerialization(StringBuilder sb, object obj, LinkedElement<Type> linkedType, SerializationConfig config, int indentCount) {
 		Type type = linkedType.Value;
 		if (type == typeof(string)) {
-			sb.Append($"\"{((string)obj).Replace("\"", "\\\"")}\"");
+			sb.Append($"\"{obj}\"");
 			return true;
 		}
 		if (type.IsPrimitive || type == typeof(decimal)) {
@@ -500,8 +499,7 @@ public static partial class JsonSerializer {
 					break;
 				continue;
 			}
-			if (next == JsonReadBuffer.NextType.EndArray)
-				break;
+			if (next == JsonReadBuffer.NextType.EndArray) break;
 			throw new JsonSyntaxException(buffer);
 		}
 
@@ -830,8 +828,7 @@ public sealed class JsonReadBuffer {
 		}
 
 		BufferIndex++;
-		if (!IsNEOB)
-			goto read;
+		if (!IsNEOB) goto read;
 
 		StringBuilder sb = new();
 
@@ -845,8 +842,7 @@ public sealed class JsonReadBuffer {
 				sb.Append('\n');
 				continue;
 			}
-			if (c == quote)
-				break;
+			if (c == quote) break;
 			sb.Append(c);
 		}
 		if (end == buffer.Length)
@@ -880,7 +876,7 @@ public sealed class JsonReadBuffer {
 	public bool TryReadString(out string result) => TryRead(ReadString, out result);
 	public bool TryReadPrimitive(out string result) => TryRead(ReadPrimitive, out result);
 
-	private bool TryRead(Func<string> reader, out string result) {
+	private static bool TryRead(Func<string> reader, out string result) {
 		try {
 			result = reader.Invoke();
 			return true;
