@@ -762,9 +762,7 @@ public sealed class JsonReadBuffer {
 	public string ReadObjectFieldName() {
 		ReadLineBuffer();
 		int start = BufferIndex;
-		for (; start < buffer.Length; start++)
-			if (!char.IsWhiteSpace(buffer[start]))
-				break;
+		for (; start < buffer.Length; start++) if (!char.IsWhiteSpace(buffer[start])) break;
 		char quote = buffer[start] switch { '"' => '"', '\'' => '\'', _ => '\0' };
 
 		int end;
@@ -775,14 +773,12 @@ public sealed class JsonReadBuffer {
 				char c = buffer[end];
 				if (c == '\\') { isSlash = !isSlash; continue; }
 				if (isSlash) { isSlash = false; continue; }
-				if (c == quote)
-					break;
+				if (c == quote) break;
 			}
 			BufferIndex = end + 1;
 			SeekPropEndChar();
-			return buffer[start..end];
-		}
-		{
+			return UnescapeString(buffer[start..end]);
+		} else {
 			end = start;
 			for (; end < buffer.Length; end++) {
 				char c = buffer[end];
@@ -790,8 +786,7 @@ public sealed class JsonReadBuffer {
 					BufferIndex = end + 1;
 					goto skipFinder;
 				}
-				if (char.IsWhiteSpace(c))
-					break;
+				if (char.IsWhiteSpace(c)) break;
 				if (!char.IsLetterOrDigit(c) && c is not '_' and not '$' && (end <= start || c is not ('\\' or '\u200C' or '\u200D'))) {
 					throw new JsonSyntaxException($"Invalid character '{c}' in parameter name", this);
 				}
@@ -855,8 +850,7 @@ public sealed class JsonReadBuffer {
 		int end = start;
 		for (; end < buffer.Length; end++) {
 			char c = buffer[end];
-			if (c is ',' or '}' or ']' || char.IsWhiteSpace(c))
-				break;
+			if (c is ',' or '}' or ']' || char.IsWhiteSpace(c)) break;
 		}
 
 		BufferIndex = end;
@@ -880,10 +874,8 @@ public sealed class JsonReadBuffer {
 		repeat:
 		while (IsNEOB) {
 			char c = buffer[BufferIndex++];
-			if (c == ':')
-				return;
-			if (!char.IsWhiteSpace(c))
-				throw new JsonSyntaxException($"Expected ':', found '{c}'", this);
+			if (c == ':') return;
+			if (!char.IsWhiteSpace(c)) throw new JsonSyntaxException($"Expected ':', found '{c}'", this);
 		}
 		ReadLineBuffer();
 		goto repeat;
