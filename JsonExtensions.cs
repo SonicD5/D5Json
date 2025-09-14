@@ -13,7 +13,6 @@ public static partial class JsonSerializer {
 			switch (c) {
 				case '\\':
 				case '"':
-				case '\'':
 					sb.Append($"\\{c}");
 					continue;
 				case '\b':

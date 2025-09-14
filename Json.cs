@@ -898,7 +898,6 @@ public sealed class JsonReadBuffer {
 			char c = str[i];
 			if (isUnescaped) {
 				switch (c) {
-					case '\'':
 					case '\\':
 					case '"':
 						sb.Append(c);
