@@ -5,6 +5,43 @@ namespace SonicD5.Json;
 
 public static partial class JsonSerializer {
 
+	public static string? Escape(this string? str, bool unicodeEscape = false) {
+		if (str == null) return null;
+		StringBuilder sb = new(str.Length);
+
+		foreach (char c in str) { 
+			switch (c) {
+				case '\\':
+				case '"':
+				case '\'':
+					sb.Append($"\\{c}");
+					continue;
+				case '\b':
+					sb.Append($"\\b");
+					continue;
+				case '\f':
+					sb.Append($"\\f");
+					continue;
+				case '\n':
+					sb.Append($"\\n");
+					continue;
+				case '\r':
+					sb.Append($"\\r");
+					continue;
+				case '\t':
+					sb.Append($"\\t");
+					continue;
+			}
+			if (unicodeEscape && !char.IsAscii(c)) {
+				sb.Append($"\\u{(ushort)c:X4}");
+				continue;
+			}
+			sb.Append(c);
+		}
+
+		return sb.ToString();
+	}
+
 	private static string ToKebabCase(string str) {
 		StringBuilder sb = new();
 		bool previousSymbIsSeparator = true;

@@ -7,9 +7,16 @@ namespace SonicD5.Json;
 
 public static class JsonSystemPack {
 
-	public static bool DateTimeSeriazation(StringBuilder sb, object obj, LinkedElement<Type> linkedType, string? format) {
+	public static bool CharSerialization(StringBuilder sb, object obj, LinkedElement<Type> linkedType, SerializationConfig config) {
+		var type = linkedType.Value;
+		if (type != typeof(char) && !char.TryParse(obj.ToString().Escape(config.UnicodeEscape), out _)) return false;
+		sb.Append($"\"{obj}\"");
+		return true;
+	}
+
+	public static bool DateTimeSeriazation(StringBuilder sb, object obj, LinkedElement<Type> linkedType, SerializationConfig config, string? format) {
 		if (linkedType.Value != typeof(DateTime)) return false;
-		sb.Append(format == null ? ((DateTime)obj - DateTime.UnixEpoch).TotalSeconds : ((DateTime)obj).ToString(format));
+		sb.Append(format == null ? ((DateTime)obj - DateTime.UnixEpoch).TotalSeconds : ((DateTime)obj).ToString(format).Escape(config.UnicodeEscape));
 		return true;
 	}
 
@@ -64,9 +71,15 @@ public static class JsonSystemPack {
 		return true;
 	}
 
-	//public static object? TypeDeserialization(JsonDeserialization buffer, LinkedElement<Type> linkedType) {
-	//	AppDomain.CurrentDomain.AssemblyLoad
-	//}
+	public static object? CharDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType) {
+		if (linkedType.Value != typeof(char)) return null;
+		if (!char.TryParse(buffer.ReadString(), out char result)) throw new JsonReflectionException();
+		return result;
+	}
+
+	/*public static object? TypeDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType) {
+		AppDomain.
+	}*/
 
 	public static object? DateTimeDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType) {
 		if (linkedType.Value != typeof(DateTime)) return null;

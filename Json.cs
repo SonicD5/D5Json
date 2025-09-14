@@ -47,15 +47,12 @@ public class LinkedElement<T> {
 		Value = value;
 		Previous = previous;
 		Last = this;
-		if (previous != null)
-			for (var e = Previous; e != null; e = e.Previous)
-				e.Last = this;
+		if (previous != null) for (var e = Previous; e != null; e = e.Previous) e.Last = this;
 	}
 
 	public Stack<T> ToStack() {
 		Stack<T> result = [];
-		for (var e = this; e != null; e = e.Previous)
-			result.Push(e.Value);
+		for (var e = this; e != null; e = e.Previous) result.Push(e.Value);
 		return result;
 	}
 
@@ -94,6 +91,7 @@ public static partial class JsonSerializer {
 			}
 		}
 		public bool IgnoreNullValues { get; init; }
+		public bool UnicodeEscape { get; init; }
 		public HashSet<JsonSerialization> SerializationPack { get; init; } = [];
 	}
 
@@ -143,7 +141,7 @@ public static partial class JsonSerializer {
 	private static bool DefaultSerialization(StringBuilder sb, object obj, LinkedElement<Type> linkedType, SerializationConfig config, int indentCount) {
 		Type type = linkedType.Value;
 		if (type == typeof(string)) {
-			sb.Append($"\"{obj}\"");
+			sb.Append($"\"{obj.ToString().Escape(config.UnicodeEscape)}\"");
 			return true;
 		}
 		if (type.IsPrimitive || type == typeof(decimal)) {
@@ -191,24 +189,19 @@ public static partial class JsonSerializer {
 		sb.Append('{');
 
 		foreach (var m in members) {
-			if (m.IsDefined(typeof(JsonSerializationIgnoreAttribute)))
-				continue;
+			if (m.IsDefined(typeof(JsonSerializationIgnoreAttribute))) continue;
 
 			var f = m as FieldInfo;
-			if (f != null && (f.IsSecurityCritical || (config.IgnoreNullValues && f.GetValue(obj) == null)))
-				continue;
+			if (f != null && (f.IsSecurityCritical || (config.IgnoreNullValues && f.GetValue(obj) == null))) continue;
 
 			var p = m as PropertyInfo;
-			if (p != null && config.IgnoreNullValues && p.GetValue(obj) == null)
-				continue;
+			if (p != null && config.IgnoreNullValues && p.GetValue(obj) == null) continue;
 
 			if (isNotFirst) {
 				sb.Append(',');
-				if (hasIndent)
-					sb.AppendLine();
+				if (hasIndent) sb.AppendLine();
 			} else {
-				if (hasIndent)
-					sb.AppendLine();
+				if (hasIndent) sb.AppendLine();
 				isNotFirst = true;
 			}
 			sb.Append($"{config.Indent.Repeat(newIndentCount)}" +
@@ -807,8 +800,7 @@ public sealed class JsonReadBuffer {
 			SeekPropEndChar();
 			skipFinder:
 			string value = buffer[start..end];
-			if (value.Length == 0)
-				throw new JsonSyntaxException($"Size of property name cannot be zero", this);
+			if (value.Length == 0) throw new JsonSyntaxException($"Size of property name cannot be zero", this);
 			return value;
 		}
 	}
@@ -823,8 +815,7 @@ public sealed class JsonReadBuffer {
 				quote = c;
 				break;
 			}
-			if (!char.IsWhiteSpace(c))
-				throw new JsonSyntaxException($"Expected string start in quote", this);
+			if (!char.IsWhiteSpace(c)) throw new JsonSyntaxException($"Expected string start in quote", this);
 		}
 
 		BufferIndex++;
@@ -845,8 +836,7 @@ public sealed class JsonReadBuffer {
 			if (c == quote) break;
 			sb.Append(c);
 		}
-		if (end == buffer.Length)
-			throw new JsonSyntaxException($"Unterminated string", this);
+		if (end == buffer.Length) throw new JsonSyntaxException($"Unterminated string", this);
 
 		BufferIndex = end + 1;
 		return UnescapeString(sb.ToString());
@@ -901,17 +891,17 @@ public sealed class JsonReadBuffer {
 
 	private static string UnescapeString(string str) {
 
-		StringBuilder sb = new();
-		bool isEscaped = false;
+		StringBuilder sb = new(str.Length);
+		bool isUnescaped = false;
 
 		for (int i = 0; i < str.Length; i++) {
-			if (isEscaped) {
-				switch (str[i]) {
+			char c = str[i];
+			if (isUnescaped) {
+				switch (c) {
+					case '\'':
 					case '\\':
-						sb.Append('\\');
-						break;
 					case '"':
-						sb.Append('"');
+						sb.Append(c);
 						break;
 					case 'b':
 						sb.Append('\b');
@@ -936,22 +926,16 @@ public sealed class JsonReadBuffer {
 								CultureInfo.InvariantCulture, out int code)) {
 								sb.Append((char)code);
 								i += 4;
-							} else
-								throw new JsonSyntaxException($"Invalid Unicode escape sequence: \\u{hex}");
-						} else
-							throw new JsonSyntaxException("Incomplete Unicode escape sequence");
+							} else throw new JsonSyntaxException($"Invalid Unicode escape sequence: \\u{hex}");
+						} else throw new JsonSyntaxException("Incomplete Unicode escape sequence");
 						break;
-					default:
-						throw new JsonSyntaxException($"Invalid escape sequence: \\{str[i]}");
+					default: throw new JsonSyntaxException($"Invalid escape sequence: \\{c}");
 				}
-				isEscaped = false;
-			} else if (str[i] == '\\')
-				isEscaped = true;
-			else
-				sb.Append(str[i]);
+				isUnescaped = false;
+			} else if (c == '\\') isUnescaped = true;
+			else sb.Append(c);
 		}
-		if (isEscaped)
-			throw new JsonSyntaxException("Unterminated escape sequence");
+		if (isUnescaped) throw new JsonSyntaxException("Unterminated escape sequence");
 		return sb.ToString();
 	}
 }
