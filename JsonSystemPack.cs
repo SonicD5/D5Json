@@ -16,7 +16,7 @@ public static class JsonSystemPack {
 
 	public static bool DateTimeSeriazation(StringBuilder sb, object obj, LinkedElement<Type> linkedType, SerializationConfig config, string? format) {
 		if (linkedType.Value != typeof(DateTime)) return false;
-		sb.Append(format == null ? ((DateTime)obj - DateTime.UnixEpoch).TotalSeconds : ((DateTime)obj).ToString(format).Escape(config.UnicodeEscape));
+		sb.Append(format == null ? ((DateTime)obj - DateTime.UnixEpoch).TotalSeconds : $"\"{((DateTime)obj).ToString(format).Escape(config.UnicodeEscape)}\"");
 		return true;
 	}
 
