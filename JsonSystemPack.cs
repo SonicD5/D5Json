@@ -27,7 +27,7 @@ public static class JsonSystemPack {
 	}
 
 	public static bool StringKeyDictionarySerialization(StringBuilder sb, object obj, LinkedElement<Type> linkedType, SerializationConfig config, int indentCount, JsonSerializationInvoker invoker) {
-		if (!TryFindInterfaceType(linkedType.Value.GetInterfaces(), i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>) 
+		if (!linkedType.Value.GetInterfaces().TryFind(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>) 
 		&& i.GetGenericArguments()[0] == typeof(string), out var strDictType)) return false;
 		var dict = (IDictionary)obj;
 		if (dict.Count == 0) {
@@ -102,18 +102,18 @@ public static class JsonSystemPack {
 
 	public static object? StringKeyDictionaryDeserialization(JsonReadBuffer buffer, LinkedElement<Type> linkedType, JsonDeserializationInvoker invoker) {
 		var type = linkedType.Value;
-		if (!TryFindInterfaceType(type.GetInterfaces(), i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>) &&
+		if (!type.GetInterfaces().TryFind(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>) &&
 		i.GetGenericArguments()[0] == typeof(string),
-		out Type strDictType)) return null;
+		out var strDictType)) return null;
 
 		var next = buffer.Next();
 		if (next != JsonReadBuffer.NextType.Block) throw new JsonSyntaxException();
-		var dict = (IDictionary)Activator.CreateInstance(type)!;
 		next = buffer.NextBlock();
-		if (next == JsonReadBuffer.NextType.EndBlock) return dict;
+		if (next == JsonReadBuffer.NextType.EndBlock) return Activator.CreateInstance(type);
 		if (next != JsonReadBuffer.NextType.Undefined) throw new JsonSyntaxException();
 
-		LinkedElement<Type> linkedVType = new(strDictType.GetGenericArguments()[1], linkedType);
+        var dict = (IDictionary)Activator.CreateInstance(type)!;
+        LinkedElement<Type> linkedVType = new(strDictType.GetGenericArguments()[1], linkedType);
 
 		while (true) {
 			if (next == JsonReadBuffer.NextType.Undefined) {

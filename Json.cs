@@ -43,12 +43,13 @@ public class LinkedElement<T> {
 	public LinkedElement<T>? Previous { get; init; }
 	public LinkedElement<T> Last { get; private set; }
 
-	public LinkedElement(T value, LinkedElement<T>? previous) {
+#pragma warning disable CS8618
+    public LinkedElement(T value, LinkedElement<T>? previous) {
 		Value = value;
 		Previous = previous;
-		Last = this;
-		if (previous != null) for (var e = Previous; e != null; e = e.Previous) e.Last = this;
+		for (var e = this; e != null; e = e.Previous) e.Last = this;
 	}
+#pragma warning restore CS8618 
 
 	public Stack<T> ToStack() {
 		Stack<T> result = [];
@@ -168,23 +169,29 @@ public static partial class JsonSerializer {
 
 		Type[] interfaceTypes = type.GetInterfaces();
 
-		if (TryFindInterfaceType(interfaceTypes, i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>),
-			out Type enumerableType))
-			return SerializeCollection(sb, (IEnumerable)obj, new(enumerableType.GetGenericArguments()[0], linkedType), config, indentCount);
-		if (type.IsValueType || type.IsClass)
-			return SerializeObject(sb, obj, linkedType, config, indentCount);
+		if (TryFind(interfaceTypes, i => {
+			if (!i.IsGenericType) return false;
+			var genericDef = i.GetGenericTypeDefinition();
+			return genericDef == typeof(ICollection<>) || genericDef == typeof(IReadOnlyCollection<>);
+		}, out var collectionType)) return SerializeCollection(sb, (ICollection)obj, new(collectionType.GetGenericArguments()[0], linkedType), config, indentCount);
+		if (type.IsValueType || type.IsClass) return SerializeObject(sb, obj, linkedType, config, indentCount);
 		return false;
 	}
 
 	private static bool SerializeObject(StringBuilder sb, object obj, LinkedElement<Type> linkedType, SerializationConfig config, int indentCount) {
 		var members = GetFieldsAndProperties(linkedType.Value);
+
+		if (members.Length == 0) {
+			sb.Append("{}");
+			return true;
+		}
+
 		bool isNotFirst = false;
 		bool hasIndent = config.Indent != "";
 		int newIndentCount = hasIndent ? indentCount + 1 : 0;
 		string quoute = config.ObjectFieldConvention == ObjectFieldConventions.NoQuote ? "" : ((char)config.ObjectFieldConvention).ToString();
 
-		if (indentCount > 0)
-			sb.AppendLine();
+		if (indentCount > 0) sb.AppendLine();
 		sb.Append(config.Indent.Repeat(indentCount));
 		sb.Append('{');
 
@@ -207,15 +214,11 @@ public static partial class JsonSerializer {
 			sb.Append($"{config.Indent.Repeat(newIndentCount)}" +
 				$"{quoute}{m.GetCustomAttribute<JsonSerializableAttribute>()?.Name ?? m.Name.ConvertCase(config.NamingConvetion)}{quoute}:" +
 				$"{(hasIndent ? ' ' : "")}");
-			if (f != null)
-				Serialize(sb, f.GetValue(obj), new(f.FieldType, linkedType), config, newIndentCount);
-			else if (p != null && p.CanRead)
-				Serialize(sb, p.GetValue(obj), new(p.PropertyType, linkedType), config, newIndentCount);
-
+			if (f != null) Serialize(sb, f.GetValue(obj), new(f.FieldType, linkedType), config, newIndentCount);
+			else if (p != null && p.CanRead) Serialize(sb, p.GetValue(obj), new(p.PropertyType, linkedType), config, newIndentCount);
 		}
 		if (isNotFirst) {
-			if (hasIndent)
-				sb.AppendLine();
+			if (hasIndent) sb.AppendLine();
 			sb.Append(config.Indent.Repeat(indentCount));
 		}
 		sb.Append('}');
@@ -233,27 +236,23 @@ public static partial class JsonSerializer {
 		bool hasIndent = config.Indent != "";
 		int newIndentCount = hasIndent ? indentCount + 1 : 0;
 
-		if (indentCount > 0)
-			sb.AppendLine();
+		if (indentCount > 0) sb.AppendLine();
 		sb.Append(config.Indent.Repeat(indentCount));
 		sb.Append('[');
 
 		foreach (var value in array) {
 			if (isNotFirst) {
 				sb.Append(',');
-				if (hasIndent)
-					sb.AppendLine();
+				if (hasIndent) sb.AppendLine();
 			} else {
-				if (hasIndent)
-					sb.AppendLine();
+				if (hasIndent) sb.AppendLine();
 				isNotFirst = true;
 			}
 			sb.Append(config.Indent.Repeat(newIndentCount));
 			Serialize(sb, value, new(!isObjElement ? eType : (value == null ? typeof(object) : value.GetType()), linkedType), config, newIndentCount);
 		}
 		if (isNotFirst) {
-			if (hasIndent)
-				sb.AppendLine();
+			if (hasIndent) sb.AppendLine();
 			sb.Append(config.Indent.Repeat(indentCount));
 		}
 		sb.Append(']');
@@ -261,34 +260,33 @@ public static partial class JsonSerializer {
 	}
 
 	private static bool SerializeCollection(StringBuilder sb, IEnumerable collection, LinkedElement<Type> linkedEType, SerializationConfig config, int indentCount) {
+		if ((collection is ICollection ic && ic.Count == 0) || !collection.GetEnumerator().MoveNext()) {
+			sb.Append("[]");
+			return true;
+		}
 		bool isObjElement = linkedEType.Value == typeof(object);
 		bool isNotFirst = false;
 		bool hasIndent = config.Indent != "";
 		int newIndentCount = hasIndent ? indentCount + 1 : 0;
 
-		if (indentCount > 0)
-			sb.AppendLine();
+		if (indentCount > 0) sb.AppendLine();
 		sb.Append(config.Indent.Repeat(indentCount));
 		sb.Append('[');
 
 		foreach (var item in collection) {
-			if (config.IgnoreNullValues && item == null)
-				continue;
+			if (config.IgnoreNullValues && item == null) continue;
 			if (isNotFirst) {
 				sb.Append(',');
-				if (hasIndent)
-					sb.AppendLine();
+				if (hasIndent) sb.AppendLine();
 			} else {
-				if (hasIndent)
-					sb.AppendLine();
+				if (hasIndent) sb.AppendLine();
 				isNotFirst = true;
 			}
 			sb.Append(config.Indent.Repeat(newIndentCount));
 			Serialize(sb, item, new(!isObjElement ? linkedEType.Value : (item == null ? typeof(object) : item.GetType()), linkedEType.Previous), config, newIndentCount);
 		}
 		if (isNotFirst) {
-			if (hasIndent)
-				sb.AppendLine();
+			if (hasIndent) sb.AppendLine();
 			sb.Append(config.Indent.Repeat(indentCount));
 		}
 		sb.Append(']');
@@ -296,8 +294,7 @@ public static partial class JsonSerializer {
 	}
 
 	public static object? Deserialize(string json, Type type, DeserializationConfig config) {
-		if (string.IsNullOrWhiteSpace(json))
-			return default;
+		if (string.IsNullOrWhiteSpace(json)) return default;
 		return Deserialize(new JsonReadBuffer(json), new(type, null), config);
 	}
 	public static object? Deserialize(string json, Type type) => Deserialize(json, type, new());
@@ -314,15 +311,12 @@ public static partial class JsonSerializer {
 		}
 	}
 
-	public static bool TryDeserialize<T>(string json, DeserializationConfig config, out T? result) {
-		try {
-			result = Deserialize<T>(json, config);
-			return true;
-		} catch {
-			result = default;
-			return false;
-		}
+	public static bool TryDeserialize<T>(string json, DeserializationConfig config, out T? result) { 
+		bool valid = TryDeserialize(json, typeof(T), config, out object? raw);
+		result = (T?)raw;
+		return valid;
 	}
+	
 
 	public static bool TryDeserialize(string json, Type type, out object? result) => TryDeserialize(json, type, new(), out result);
 	public static bool TryDeserialize<T>(string json, out T? result) => TryDeserialize(json, new(), out result);
@@ -384,8 +378,7 @@ public static partial class JsonSerializer {
 			string raw = buffer.ReadPrimitive();
 			bool isHex = HexRegex.IsMatch(raw);
 			bool isNegative = raw.StartsWith('-');
-			if (isHex && isNegative && TryFindInterfaceType(interfaceTypes, i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ISignedNumber<>), out _))
-				raw = raw.Replace("-", "");
+			if (isHex && isNegative && interfaceTypes.Contains(typeof(ISignedNumber<>).MakeGenericType(type))) raw = raw.Replace("-", "");
 			return Type.GetTypeCode(type) switch {
 				TypeCode.Boolean => bool.Parse(raw),
 				TypeCode.Single => float.Parse(raw, CultureInfo.InvariantCulture),
@@ -408,36 +401,37 @@ public static partial class JsonSerializer {
 			string? raw = buffer.ReadString();
 
 			foreach (var field in fields) {
-				if ((field.IsDefined(typeof(JsonSerializableAttribute)) && field.GetCustomAttribute<JsonSerializableAttribute>()?.Name == raw) ||
+				if ((field.IsDefined(typeof(JsonSerializableAttribute)) && field.GetCustomAttribute<JsonSerializableAttribute>()!.Name == raw) ||
 					(config.RequiredNamingEquality ? field.Name == raw : Enum.GetValues<NamingConvetions>().Any(v => field.Name.ConvertCase(v) == raw)))
 					return field.GetValue(null);
-
 			}
 			throw new JsonReflectionException($"\"{type.Name}\" enum hasn't \"{raw}\" value");
 		}
 		if (type.IsArray)
 			return DeserializeArray(buffer, linkedType, config);
 
-		if (TryFindInterfaceType(interfaceTypes, i => i.IsGenericType
-		&& i.GetGenericTypeDefinition() == typeof(IEnumerable<>),
-		out Type collectionType))
-			return DeserializeCollection(buffer, new(collectionType.GetGenericArguments()[0], linkedType), config);
-		if (type.IsValueType || type.IsClass)
-			return DeserializeObject(buffer, linkedType, config);
+		if (interfaceTypes.TryFind(i => {
+			if (!i.IsGenericType)
+				return false;
+			var genericDef = i.GetGenericTypeDefinition();
+			return genericDef == typeof(ICollection<>) || genericDef == typeof(IReadOnlyCollection<>);
+		},
+		out var collectionType)) {
+			var eType = collectionType.GetGenericArguments()[0];
+            return DeserializeCollection(buffer, new(eType, linkedType), config, !interfaceTypes.Contains(typeof(ICollection<>).MakeGenericType(eType))); 
+		}
+		if (type.IsValueType || type.IsClass) return DeserializeObject(buffer, linkedType, config);
 		return null;
 	}
 
-	private static object DeserializeArray(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
+	private static Array DeserializeArray(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
 		var next = buffer.Next();
 
-		if (next != JsonReadBuffer.NextType.Array)
-			throw new JsonSyntaxException($"The object start must be '['", buffer);
+		if (next != JsonReadBuffer.NextType.Array) throw new JsonSyntaxException($"The object start must be '['", buffer);
 		var eType = linkedType.Value.GetElementType()!;
 		next = buffer.NextBlock();
-		if (next == JsonReadBuffer.NextType.EndArray)
-			return Array.CreateInstance(eType, 0);
-		if (next == JsonReadBuffer.NextType.Punctuation)
-			throw new JsonSyntaxException($"Punctuation must not be here", buffer);
+		if (next == JsonReadBuffer.NextType.EndArray) return Array.CreateInstance(eType, 0);
+		if (next == JsonReadBuffer.NextType.Punctuation) throw new JsonSyntaxException($"Punctuation must not be here", buffer);
 		List<object?> elems = [];
 
 		while (true) {
@@ -447,56 +441,53 @@ public static partial class JsonSerializer {
 			}
 			if (next == JsonReadBuffer.NextType.Punctuation) {
 				next = buffer.NextBlock();
-				if (next == JsonReadBuffer.NextType.Punctuation)
-					throw new JsonSyntaxException($"Punctuation must not be here", buffer);
-				if (next == JsonReadBuffer.NextType.EndArray)
-					break;
-				continue;
-			}
-			if (next == JsonReadBuffer.NextType.EndArray)
-				break;
-			throw new JsonSyntaxException(buffer);
-		}
-
-		var array = Array.CreateInstance(eType, elems.Count);
-		for (int i = 0; i < elems.Count; i++)
-			array.SetValue(elems[i], i);
-		return array;
-	}
-
-	private static object DeserializeCollection(JsonReadBuffer buffer, LinkedElement<Type> linkedEtype, DeserializationConfig config) {
-		var next = buffer.Next();
-
-		if (next != JsonReadBuffer.NextType.Array)
-			throw new JsonSyntaxException($"The object start must be '['", buffer);
-		Type type = linkedEtype.Previous!.Value;
-		var collection = Activator.CreateInstance(type)!;
-		next = buffer.NextBlock();
-		if (next == JsonReadBuffer.NextType.EndArray)
-			return collection;
-		if (next == JsonReadBuffer.NextType.Punctuation)
-			throw new JsonSyntaxException($"Punctuation must not be here", buffer);
-
-		var addMethod = type.GetMethod("Add")!;
-
-		while (true) {
-			if (next == JsonReadBuffer.NextType.Undefined) {
-				addMethod.Invoke(collection, [Deserialize(buffer, linkedEtype, config)]);
-				next = buffer.NextBlock();
-			}
-			if (next == JsonReadBuffer.NextType.Punctuation) {
-				next = buffer.NextBlock();
-				if (next == JsonReadBuffer.NextType.Punctuation)
-					throw new JsonSyntaxException($"Punctuation must not be here", buffer);
-				if (next == JsonReadBuffer.NextType.EndArray)
-					break;
+				if (next == JsonReadBuffer.NextType.Punctuation) throw new JsonSyntaxException($"Punctuation must not be here", buffer);
+				if (next == JsonReadBuffer.NextType.EndArray) break;
 				continue;
 			}
 			if (next == JsonReadBuffer.NextType.EndArray) break;
 			throw new JsonSyntaxException(buffer);
 		}
 
-		return collection;
+		var array = Array.CreateInstance(eType, elems.Count);
+		for (int i = 0; i < elems.Count; i++) array.SetValue(elems[i], i);
+		return array;
+	}
+
+	private static object DeserializeCollection(JsonReadBuffer buffer, LinkedElement<Type> linkedEtype, DeserializationConfig config, bool readOnly) {
+		var next = buffer.Next();
+
+		if (next != JsonReadBuffer.NextType.Array) throw new JsonSyntaxException($"The object start must be '['", buffer);
+		var type = linkedEtype.Previous!.Value;
+		next = buffer.NextBlock();
+		if (next == JsonReadBuffer.NextType.EndArray) return Activator.CreateInstance(type)!;
+		if (next == JsonReadBuffer.NextType.Punctuation) throw new JsonSyntaxException($"Punctuation must not be here", buffer);
+
+		var eType = linkedEtype.Value;
+		var raw = Activator.CreateInstance(readOnly ? typeof(List<>).MakeGenericType(eType) : type)!;
+		var addMethod = raw.GetType().GetMethod("Add")!;
+
+		while (true) {
+			if (next == JsonReadBuffer.NextType.Undefined) {
+				addMethod.Invoke(raw, [Deserialize(buffer, linkedEtype, config)]);
+				next = buffer.NextBlock();
+			}
+			if (next == JsonReadBuffer.NextType.Punctuation) {
+				next = buffer.NextBlock();
+				if (next == JsonReadBuffer.NextType.Punctuation) throw new JsonSyntaxException($"Punctuation must not be here", buffer);
+				if (next == JsonReadBuffer.NextType.EndArray) break;
+				continue;
+			}
+			if (next == JsonReadBuffer.NextType.EndArray) break;
+			throw new JsonSyntaxException(buffer);
+		}
+
+		if (readOnly) {
+			var ctor = type.GetConstructor(BindingFlags.Public | BindingFlags.Instance, [typeof(IEnumerable<>).MakeGenericType(eType)]) ?? 
+				throw new JsonReflectionException($"The \"{StringType(typeof(IReadOnlyCollection<>), true)}\" implementations must have the public collection init constructor to be deserialized");
+			return ctor.Invoke([raw]);
+		}
+		return raw;
 	}
 
 	private static object DeserializeObject(JsonReadBuffer buffer, LinkedElement<Type> linkedType, DeserializationConfig config) {
@@ -520,8 +511,7 @@ public static partial class JsonSerializer {
 					buffer.SkipObjectField();
 				else if (m is PropertyInfo p && p.CanWrite)
 					p.SetValue(obj, Deserialize(buffer, new(p.PropertyType, linkedType), config));
-				else if (m is FieldInfo f)
-					f.SetValue(obj, Deserialize(buffer, new(f.FieldType, linkedType), config));
+				else if (m is FieldInfo f) f.SetValue(obj, Deserialize(buffer, new(f.FieldType, linkedType), config));
 				next = buffer.NextBlock();
 			}
 			if (next == JsonReadBuffer.NextType.Punctuation) {

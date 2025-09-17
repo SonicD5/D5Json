@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text;
 
 namespace SonicD5.Json;
@@ -179,14 +180,9 @@ public static partial class JsonSerializer {
 		};
 	}
 
-	public static bool TryFindInterfaceType(Type[] interfaceTypes, Func<Type, bool> predicate, out Type type) {
-		Type? t = interfaceTypes.FirstOrDefault(predicate);
-		if (t != null) {
-			type = t;
-			return true;
-		}
-		type = typeof(object);
-		return false;
+	public static bool TryFind(this Type[] interfaceTypes, Func<Type, bool> predicate, [NotNullWhen(true)] out Type? type) {
+		type = interfaceTypes.FirstOrDefault(predicate);
+		return type != null;
 	}
 
 	public static string? Repeat(this string? str, int count) {
