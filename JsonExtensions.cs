@@ -1,10 +1,15 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 
 namespace SonicD5.Json;
 
 public static partial class JsonSerializer {
+	public static bool HasJsonTypes<T>(this Type t, IEnumerable<JsonPackable<T>> pack, JsonTypes types) where T : Delegate => pack.Any(p => p.TypeChecker.Invoke(t) && p.JsonTypes.HasFlag(types));
+
+	public static MemberInfo[] GetFieldsAndProperties(this Type type) => [.. type.GetMembers(BindingFlags.Public | BindingFlags.Instance)
+        .Where(m => m.MemberType == MemberTypes.Field || (m is PropertyInfo p && p.CanWrite && p.CanRead && p.GetIndexParameters().Length == 0))];
 
 	public static string? Escape(this string? str, bool unicodeEscape = false) {
 		if (str == null) return null;
@@ -180,11 +185,6 @@ public static partial class JsonSerializer {
 		};
 	}
 
-	public static bool TryFind(this Type[] interfaceTypes, Func<Type, bool> predicate, [NotNullWhen(true)] out Type? type) {
-		type = interfaceTypes.FirstOrDefault(predicate);
-		return type != null;
-	}
-
 	public static string? Repeat(this string? str, int count) {
 		if (count <= 0) return "";
 		if (string.IsNullOrEmpty(str) || count == 1) return str;
@@ -206,8 +206,7 @@ public static partial class JsonSerializer {
 		var nullableValue = Nullable.GetUnderlyingType(type);
 		if (nullableValue != null) return $"{StringType(nullableValue, hideGenericArgs)}?";
 		StringBuilder sb = new();
-		if (!string.IsNullOrEmpty(type.Namespace)) sb.Append(type.Namespace);
-		sb.Append('.');
+		if (!string.IsNullOrEmpty(type.Namespace)) sb.Append($"{type.Namespace}.");
 		if (type.IsGenericType) {
 			var genericArgs = type.GetGenericArguments();
 			sb.Append(type.Name[..type.Name.IndexOf('`')]);
